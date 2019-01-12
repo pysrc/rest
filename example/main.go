@@ -9,11 +9,12 @@ import (
 func main() {
 	var router rest.Router
 	router.Validate = func(w http.ResponseWriter, r *http.Request) bool { // 拦截所有请求，并验证
-		if r.URL.Path[:4] == "/api" {
-			return true
-		}
-		return false
+		fmt.Println(r.URL.Path)
+		return true
 	}
+	router.Route("GET", "/", func(w http.ResponseWriter, r *http.Request, params map[string]string) {
+		w.Write([]byte(fmt.Sprintln(r.Method, params)))
+	})
 	router.Route("GET", "/api/:name/:pwd/index", func(w http.ResponseWriter, r *http.Request, params map[string]string) {
 		w.Write([]byte(fmt.Sprintln(r.Method, params)))
 	})

@@ -20,6 +20,9 @@ func GetUrlParts(url string) []string {
 func GetUrlRoleParts(role string) ([]string, []bool) {
 	var p = GetUrlParts(role)
 	var q = make([]bool, len(p))
+	if len(p) == 1 && p[0] == "" {
+		return p, q
+	}
 	for i := 0; i < len(p); i++ {
 		if p[i][:1] == ":" {
 			q[i] = true
@@ -58,7 +61,7 @@ type Router struct {
 }
 
 func (self *Router) ErrorRoute(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Not found !"))
+	http.NotFound(w, r)
 }
 
 func (self *Router) Route(method, role string, dofunc func(http.ResponseWriter, *http.Request, map[string]string)) {
