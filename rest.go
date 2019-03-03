@@ -6,8 +6,8 @@ import (
 )
 
 type RoleMapping struct {
-	Roles     []string
-	RolesBool []bool
+	Roles     []string // url模板
+	RolesBool []bool   // 如果数组位置对应的是url路由则为true，参数则为false
 	Dofunc    func(http.ResponseWriter, *http.Request, map[string]string)
 }
 
@@ -25,27 +25,31 @@ func GetUrlRoleParts(role string) ([]string, []bool) {
 	}
 	for i := 0; i < len(p); i++ {
 		if p[i][:1] == ":" {
-			q[i] = true
+			q[i] = false
 			p[i] = p[i][1:]
 		} else {
-			q[i] = false
+			q[i] = true
 		}
 	}
 	return p, q
 }
 
 func Matchs(urlParts []string, roles []string, rolesBool []bool) map[string]string {
+	// 判断参数长度
 	if len(urlParts) != len(roles) {
 		return nil
 	}
+	// 判断结构是否匹配
+	for i, v := range rolesBool {
+		if v && urlParts[i] != roles[i] {
+			return nil
+		}
+	}
+	// 满足则新建map接收参数
 	var res = make(map[string]string)
 	for i, v := range rolesBool {
-		if v {
+		if !v {
 			res[roles[i]] = urlParts[i]
-		} else {
-			if urlParts[i] != roles[i] {
-				return nil
-			}
 		}
 	}
 	return res
@@ -56,8 +60,12 @@ func Match(url string, roles []string, rolesBool []bool) map[string]string {
 }
 
 type Router struct {
-	Mappings map[string][]*RoleMapping
-	Validate func(http.ResponseWriter, *http.Request) bool // 操作验证
+	mappings  map[string][]*RoleMapping
+	validates []func(http.ResponseWriter, *http.Request) bool // 操作验证,必须全通过才进行下一步操作
+}
+
+func (self *Router) AddValidate(vali func(http.ResponseWriter, *http.Request) bool) {
+	self.validates = append(self.validates, vali)
 }
 
 func (self *Router) ErrorRoute(w http.ResponseWriter, r *http.Request) {
@@ -65,21 +73,20 @@ func (self *Router) ErrorRoute(w http.ResponseWriter, r *http.Request) {
 }
 
 func (self *Router) Route(method, role string, dofunc func(http.ResponseWriter, *http.Request, map[string]string)) {
-	if self.Mappings == nil {
-		self.Mappings = make(map[string][]*RoleMapping, 4)
+	if self.mappings == nil {
+		self.mappings = make(map[string][]*RoleMapping, 4)
 	}
 	p, q := GetUrlRoleParts(role)
-	self.Mappings[method] = append(self.Mappings[method], &RoleMapping{p, q, dofunc})
+	self.mappings[method] = append(self.mappings[method], &RoleMapping{p, q, dofunc})
 }
 
 func (self *Router) Handle(w http.ResponseWriter, r *http.Request) {
-	if self.Validate != nil {
-		if !self.Validate(w, r) { // 验证失败
-			self.ErrorRoute(w, r)
+	for _, v := range self.validates { // 验证
+		if !v(w, r) {
 			return
 		}
 	}
-	rms := self.Mappings[r.Method]
+	rms := self.mappings[r.Method]
 	if rms == nil {
 		self.ErrorRoute(w, r)
 		return
